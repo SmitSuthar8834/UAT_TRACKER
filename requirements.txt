@@ -1,0 +1,9 @@
+Django==4.2.7
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+requests==2.31.0
+python-decouple==3.8
+Pillow==10.1.0
+django-extensions==3.2.3
+django-jazzmin==2.6.0
+cryptography==41.0.7
