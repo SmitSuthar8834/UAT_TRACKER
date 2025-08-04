@@ -170,3 +170,113 @@ class Attachment(models.Model):
     
     def __str__(self):
         return f"{self.filename} for {self.case.subject}"
+# Dynamic Admin Panel Models
+class DynamicPage(models.Model):
+    """
+    Model for creating dynamic pages through admin panel
+    """
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True, help_text="URL slug for the page")
+    content = models.TextField(help_text="HTML content for the page")
+    is_active = models.BooleanField(default=True)
+    show_in_menu = models.BooleanField(default=True, help_text="Show in navigation menu")
+    menu_order = models.IntegerField(default=0, help_text="Order in menu (lower numbers first)")
+    icon = models.CharField(max_length=50, blank=True, help_text="Font Awesome icon class (e.g., fas fa-home)")
+    requires_login = models.BooleanField(default=True, help_text="Require user login to access")
+    allowed_roles = models.CharField(
+        max_length=100, 
+        blank=True, 
+        help_text="Comma-separated roles (admin,manager,user) - leave blank for all"
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.title
+    
+    class Meta:
+        ordering = ['menu_order', 'title']
+
+class DynamicWidget(models.Model):
+    """
+    Model for creating dashboard widgets through admin panel
+    """
+    WIDGET_TYPES = [
+        ('stat', 'Statistics Card'),
+        ('chart', 'Chart Widget'),
+        ('table', 'Data Table'),
+        ('custom', 'Custom HTML'),
+    ]
+    
+    title = models.CharField(max_length=200)
+    widget_type = models.CharField(max_length=20, choices=WIDGET_TYPES, default='stat')
+    content = models.TextField(help_text="Widget content (HTML/JSON config)")
+    css_classes = models.CharField(max_length=200, blank=True, help_text="Additional CSS classes")
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    width = models.CharField(
+        max_length=20, 
+        default='col-md-6',
+        help_text="Bootstrap column class (e.g., col-md-6, col-lg-4)"
+    )
+    allowed_roles = models.CharField(
+        max_length=100, 
+        blank=True, 
+        help_text="Comma-separated roles - leave blank for all"
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    
+    def __str__(self):
+        return self.title
+    
+    class Meta:
+        ordering = ['order', 'title']
+
+class DynamicMenuItem(models.Model):
+    """
+    Model for creating custom menu items
+    """
+    title = models.CharField(max_length=100)
+    url = models.CharField(max_length=200, help_text="URL or route name")
+    icon = models.CharField(max_length=50, blank=True, help_text="Font Awesome icon class")
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    requires_login = models.BooleanField(default=True)
+    allowed_roles = models.CharField(max_length=100, blank=True)
+    open_in_new_tab = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return self.title
+    
+    class Meta:
+        ordering = ['order', 'title']
+
+class SystemSetting(models.Model):
+    """
+    Model for managing system settings through admin panel
+    """
+    key = models.CharField(max_length=100, unique=True)
+    value = models.TextField()
+    description = models.TextField(blank=True)
+    setting_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('text', 'Text'),
+            ('number', 'Number'),
+            ('boolean', 'Boolean'),
+            ('json', 'JSON'),
+            ('color', 'Color'),
+            ('url', 'URL'),
+        ],
+        default='text'
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.key}: {self.value[:50]}"
+    
+    class Meta:
+        ordering = ['key']

@@ -38,4 +38,10 @@ urlpatterns = [
     # Utilities
     path('api/demo-data/', views.create_demo_data, name='create_demo_data'),
     path('api/health/', views.health_check, name='health_check'),
+    
+    # Dynamic Admin Panel
+    path('api/dynamic-pages/', views.get_dynamic_pages, name='get_dynamic_pages'),
+    path('api/dynamic-pages/<slug:slug>/', views.get_dynamic_page, name='get_dynamic_page'),
+    path('api/dynamic-widgets/', views.get_dynamic_widgets, name='get_dynamic_widgets'),
+    path('api/system-settings/', views.get_system_settings, name='get_system_settings'),
 ]

@@ -891,3 +891,313 @@ def assign_case(request, case_id):
             })
     
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
+@csrf_exempt
+def user_login(request):
+    """
+    User login with email or username support
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            username_or_email = data.get('username', '').strip()
+            password = data.get('password', '')
+            
+            if not username_or_email or not password:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Username/email and password are required'
+                }, status=400)
+            
+            # Try to find user by email first, then by username
+            user = None
+            if '@' in username_or_email:
+                # It's an email
+                try:
+                    user = User.objects.get(email=username_or_email)
+                    username = user.username
+                except User.DoesNotExist:
+                    pass
+            else:
+                # It's a username
+                username = username_or_email
+            
+            # Authenticate user
+            if user:
+                auth_user = authenticate(request, username=user.username, password=password)
+            else:
+                auth_user = authenticate(request, username=username_or_email, password=password)
+            
+            if auth_user is not None:
+                if auth_user.is_active:
+                    login(request, auth_user)
+                    
+                    # Get user profile and company info
+                    try:
+                        profile = auth_user.profile
+                        company_data = {
+                            'id': profile.company.id,
+                            'name': profile.company.name,
+                            'logo': profile.company.logo.url if profile.company.logo else None
+                        }
+                    except:
+                        company_data = None
+                    
+                    return JsonResponse({
+                        'success': True,
+                        'user': {
+                            'id': auth_user.id,
+                            'username': auth_user.username,
+                            'email': auth_user.email,
+                            'first_name': auth_user.first_name,
+                            'last_name': auth_user.last_name,
+                            'is_admin': getattr(auth_user.profile, 'is_admin', False) if hasattr(auth_user, 'profile') else False,
+                            'can_assign_cases': getattr(auth_user.profile, 'can_assign_cases', False) if hasattr(auth_user, 'profile') else False,
+                            'company': company_data
+                        }
+                    })
+                else:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Account is disabled'
+                    }, status=403)
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid credentials'
+                }, status=401)
+                
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON data'
+            }, status=400)
+        except Exception as e:
+            logger.error(f"Login error: {e}")
+            return JsonResponse({
+                'success': False,
+                'error': 'Login failed'
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'error': 'Method not allowed'
+    }, status=405)
+
+@csrf_exempt
+def user_logout(request):
+    """
+    User logout
+    """
+    if request.method == 'POST':
+        logout(request)
+        return JsonResponse({'success': True, 'message': 'Logged out successfully'})
+    
+    return JsonResponse({
+        'success': False,
+        'error': 'Method not allowed'
+    }, status=405)
+
+# Dynamic Admin Panel Views
+from .models import DynamicPage, DynamicWidget, DynamicMenuItem, SystemSetting
+
+def get_dynamic_pages(request):
+    """
+    Get all active dynamic pages for navigation
+    """
+    try:
+        user_roles = []
+        if request.user.is_authenticated:
+            if hasattr(request.user, 'profile'):
+                if request.user.profile.is_admin:
+                    user_roles.append('admin')
+                if request.user.profile.can_assign_cases:
+                    user_roles.append('manager')
+            user_roles.append('user')
+        
+        pages = DynamicPage.objects.filter(is_active=True, show_in_menu=True)
+        
+        pages_data = []
+        for page in pages:
+            # Check role permissions
+            if page.allowed_roles:
+                allowed_roles = [role.strip() for role in page.allowed_roles.split(',')]
+                if not any(role in user_roles for role in allowed_roles):
+                    continue
+            
+            # Check login requirement
+            if page.requires_login and not request.user.is_authenticated:
+                continue
+            
+            pages_data.append({
+                'id': page.id,
+                'title': page.title,
+                'slug': page.slug,
+                'icon': page.icon,
+                'menu_order': page.menu_order
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'pages': pages_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dynamic pages: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to load pages'
+        }, status=500)
+
+def get_dynamic_page(request, slug):
+    """
+    Get a specific dynamic page by slug
+    """
+    try:
+        page = get_object_or_404(DynamicPage, slug=slug, is_active=True)
+        
+        # Check login requirement
+        if page.requires_login and not request.user.is_authenticated:
+            return JsonResponse({
+                'success': False,
+                'error': 'Login required'
+            }, status=401)
+        
+        # Check role permissions
+        if page.allowed_roles and request.user.is_authenticated:
+            user_roles = []
+            if hasattr(request.user, 'profile'):
+                if request.user.profile.is_admin:
+                    user_roles.append('admin')
+                if request.user.profile.can_assign_cases:
+                    user_roles.append('manager')
+            user_roles.append('user')
+            
+            allowed_roles = [role.strip() for role in page.allowed_roles.split(',')]
+            if not any(role in user_roles for role in allowed_roles):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Access denied'
+                }, status=403)
+        
+        return JsonResponse({
+            'success': True,
+            'page': {
+                'id': page.id,
+                'title': page.title,
+                'slug': page.slug,
+                'content': page.content,
+                'icon': page.icon
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dynamic page {slug}: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Page not found'
+        }, status=404)
+
+def get_dynamic_widgets(request):
+    """
+    Get dashboard widgets for current user
+    """
+    try:
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'success': False,
+                'error': 'Login required'
+            }, status=401)
+        
+        user_roles = []
+        if hasattr(request.user, 'profile'):
+            if request.user.profile.is_admin:
+                user_roles.append('admin')
+            if request.user.profile.can_assign_cases:
+                user_roles.append('manager')
+        user_roles.append('user')
+        
+        widgets = DynamicWidget.objects.filter(is_active=True)
+        
+        widgets_data = []
+        for widget in widgets:
+            # Check role permissions
+            if widget.allowed_roles:
+                allowed_roles = [role.strip() for role in widget.allowed_roles.split(',')]
+                if not any(role in user_roles for role in allowed_roles):
+                    continue
+            
+            widgets_data.append({
+                'id': widget.id,
+                'title': widget.title,
+                'widget_type': widget.widget_type,
+                'content': widget.content,
+                'css_classes': widget.css_classes,
+                'width': widget.width,
+                'order': widget.order
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'widgets': widgets_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dynamic widgets: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to load widgets'
+        }, status=500)
+
+def get_system_settings(request):
+    """
+    Get system settings (admin only)
+    """
+    try:
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'success': False,
+                'error': 'Login required'
+            }, status=401)
+        
+        if not (hasattr(request.user, 'profile') and request.user.profile.is_admin):
+            return JsonResponse({
+                'success': False,
+                'error': 'Admin access required'
+            }, status=403)
+        
+        settings = SystemSetting.objects.filter(is_active=True)
+        
+        settings_data = {}
+        for setting in settings:
+            if setting.setting_type == 'boolean':
+                value = setting.value.lower() in ['true', '1', 'yes']
+            elif setting.setting_type == 'number':
+                try:
+                    value = float(setting.value)
+                except:
+                    value = setting.value
+            elif setting.setting_type == 'json':
+                try:
+                    value = json.loads(setting.value)
+                except:
+                    value = setting.value
+            else:
+                value = setting.value
+            
+            settings_data[setting.key] = {
+                'value': value,
+                'type': setting.setting_type,
+                'description': setting.description
+            }
+        
+        return JsonResponse({
+            'success': True,
+            'settings': settings_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting system settings: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to load settings'
+        }, status=500)

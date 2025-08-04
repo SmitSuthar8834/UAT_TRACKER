@@ -247,3 +247,97 @@ class AttachmentAdmin(admin.ModelAdmin):
 admin.site.site_header = "UAT Tracker Administration"
 admin.site.site_title = "UAT Tracker Admin"
 admin.site.index_title = "Welcome to UAT Tracker Administration"
+
+# Dynamic Admin Panel Configurations
+from .models import DynamicPage, DynamicWidget, DynamicMenuItem, SystemSetting
+
+@admin.register(DynamicPage)
+class DynamicPageAdmin(admin.ModelAdmin):
+    list_display = ('title', 'slug', 'is_active', 'show_in_menu', 'menu_order', 'requires_login', 'created_at')
+    list_filter = ('is_active', 'show_in_menu', 'requires_login', 'created_at')
+    search_fields = ('title', 'slug', 'content')
+    prepopulated_fields = {'slug': ('title',)}
+    list_editable = ('is_active', 'show_in_menu', 'menu_order')
+    
+    fieldsets = (
+        ('Page Information', {
+            'fields': ('title', 'slug', 'content')
+        }),
+        ('Display Settings', {
+            'fields': ('is_active', 'show_in_menu', 'menu_order', 'icon')
+        }),
+        ('Access Control', {
+            'fields': ('requires_login', 'allowed_roles'),
+            'description': 'Control who can access this page'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(DynamicWidget)
+class DynamicWidgetAdmin(admin.ModelAdmin):
+    list_display = ('title', 'widget_type', 'is_active', 'order', 'width')
+    list_filter = ('widget_type', 'is_active')
+    search_fields = ('title', 'content')
+    list_editable = ('is_active', 'order')
+    
+    fieldsets = (
+        ('Widget Information', {
+            'fields': ('title', 'widget_type', 'content')
+        }),
+        ('Display Settings', {
+            'fields': ('is_active', 'order', 'width', 'css_classes')
+        }),
+        ('Access Control', {
+            'fields': ('allowed_roles',)
+        })
+    )
+
+@admin.register(DynamicMenuItem)
+class DynamicMenuItemAdmin(admin.ModelAdmin):
+    list_display = ('title', 'url', 'parent', 'order', 'is_active', 'requires_login')
+    list_filter = ('is_active', 'requires_login', 'parent')
+    search_fields = ('title', 'url')
+    list_editable = ('order', 'is_active')
+    
+    fieldsets = (
+        ('Menu Item', {
+            'fields': ('title', 'url', 'icon', 'parent')
+        }),
+        ('Settings', {
+            'fields': ('order', 'is_active', 'open_in_new_tab')
+        }),
+        ('Access Control', {
+            'fields': ('requires_login', 'allowed_roles')
+        })
+    )
+
+@admin.register(SystemSetting)
+class SystemSettingAdmin(admin.ModelAdmin):
+    list_display = ('key', 'value_preview', 'setting_type', 'is_active', 'updated_at')
+    list_filter = ('setting_type', 'is_active', 'updated_at')
+    search_fields = ('key', 'value', 'description')
+    list_editable = ('is_active',)
+    
+    fieldsets = (
+        ('Setting Information', {
+            'fields': ('key', 'value', 'description', 'setting_type')
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def value_preview(self, obj):
+        return obj.value[:50] + '...' if len(obj.value) > 50 else obj.value
+    value_preview.short_description = 'Value Preview'
