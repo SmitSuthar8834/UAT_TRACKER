@@ -690,12 +690,7 @@
                     <input type="password" id="loginPassword" class="form-control" required placeholder="Enter your password">
                 </div>
                 
-                <div class="form-group">
-                    <label class="form-label">Company</label>
-                    <select id="loginCompany" class="form-control" required>
-                        <option value="">Select your company</option>
-                    </select>
-                </div>
+                <!-- Company will be automatically detected from user profile -->
                 
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
                     <i class="fas fa-sign-in-alt"></i>
@@ -1005,7 +1000,6 @@
 
         // Initialize application
         document.addEventListener('DOMContentLoaded', function() {
-            loadCompanies();
             loadLookups();
         });
 
@@ -1014,7 +1008,7 @@
             event.preventDefault();
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
-            const company = document.getElementById('loginCompany').value;
+            // Company will be automatically detected from user profile
             
             const submitBtn = event.target.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
@@ -1025,7 +1019,7 @@
                 const response = await fetch('/api/login/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password, company })
+                    body: JSON.stringify({ username: email, password })
                 });
                 
                 const data = await response.json();
